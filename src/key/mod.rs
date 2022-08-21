@@ -5,7 +5,7 @@ use enigo::{Enigo, KeyboardControllable, Key};
 pub fn key_test () {
     let mut enigo = Enigo::new();
 
-    let stop_sec = time::Duration::from_millis(2000);
+    let stop_sec = time::Duration::from_millis(3000);
     thread::sleep(stop_sec);
 
     enigo.key_down(Key::Shift);

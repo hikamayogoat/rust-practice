@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 enigo = "0.0.14"
 screenshots = "0.4.3"
-show-image = "0.12.3"
+opencv = "0.66"
