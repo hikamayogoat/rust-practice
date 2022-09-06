@@ -19,9 +19,13 @@ const BOTTOM_RIGHT: (i32, i32) = (1335, 1760);
 const FIELD_CELL_WIDTH: i32 = 10;
 const FIELD_CELL_HEIGHT: i32 = 20;
 
+const NO_BLOCK_COLOR_LOWER: u8 = 25;
+const NO_BLOCK_COLOR_UPPER: u8 = 65;
+const NO_BLOCK_COLOR_DIFF_UPPER: u8 = 40;
+
 pub fn screen_test() {
     // 盤面情報を保持する2次元配列
-    let mut field = [[0i32; FIELD_CELL_WIDTH as usize]; FIELD_CELL_HEIGHT as usize];
+    let mut field = [[false; FIELD_CELL_HEIGHT as usize]; FIELD_CELL_WIDTH as usize];
 
     // 画像読み込み
     let image = imread(TET_FILENAME);
@@ -38,20 +42,22 @@ pub fn screen_test() {
     let cell_size = (width / FIELD_CELL_WIDTH, height / FIELD_CELL_HEIGHT);
 
     // 1マスごとにブロックがあるかどうかを判定する
-    for x in 0..FIELD_CELL_WIDTH {
-        for y in 0..FIELD_CELL_HEIGHT {
-            check_block_exist(&cliped, x, y, &cell_size);
+    for y in 0..FIELD_CELL_HEIGHT{
+        for x in 0..FIELD_CELL_WIDTH{
+            field[x as usize][y as usize] = check_block_exist(&cliped, x, y, &cell_size);
+            if field[x as usize][y as usize] {
+                print!("o");
+            } else {
+                print!(".");
+            }
         }
+        println!("");
     }
 
-    // 色でフィルターする
-    // let filtered = filter_color(cliped);
-
-    // imshow("filtered", &filtered);
     
 }
 
-fn check_block_exist(image: &Mat, x: i32, y: i32, cell_size: &(i32, i32)) {
+fn check_block_exist(image: &Mat, x: i32, y: i32, cell_size: &(i32, i32)) -> bool {
     // 1マスを切り出して kmeans に渡せる形にする
     let cell_u = Mat::roi(
         image,
@@ -61,14 +67,13 @@ fn check_block_exist(image: &Mat, x: i32, y: i32, cell_size: &(i32, i32)) {
     cell_u.convert_to(&mut cell_f, CV_32F, 1.0, 0.0);
 
     let cell = cell_f.reshape(1,  cell_f.rows() * cell_f.cols()).unwrap();
-    imshow("cell", &cell_u);
     
     // kmeans クラスタリングで代表色を抜き出す
     let mut label = Mat::default();
     let mut center= Mat::default();
     let criteria = TermCriteria {
         typ: 100,
-        max_count: 10,
+        max_count: 30,
         epsilon: 1.0
     };
     kmeans(
@@ -84,7 +89,22 @@ fn check_block_exist(image: &Mat, x: i32, y: i32, cell_size: &(i32, i32)) {
     center.convert_to(&mut center_u, CV_8UC1, 1.0, 0.0);
 
     let data = center_u.data_typed::<u8>().unwrap();
-    println!("({:?})", data);
+
+    if 
+        data[0] >= NO_BLOCK_COLOR_LOWER
+        && data[1] >= NO_BLOCK_COLOR_LOWER
+        && data[2] >= NO_BLOCK_COLOR_LOWER
+        && data[0] <= NO_BLOCK_COLOR_UPPER
+        && data[1] <= NO_BLOCK_COLOR_UPPER
+        && data[2] <= NO_BLOCK_COLOR_UPPER
+        && ((data[0] as i32) - (data[1] as i32)).abs() as u8 <= NO_BLOCK_COLOR_DIFF_UPPER
+        && ((data[1] as i32) - (data[2] as i32)).abs() as u8 <= NO_BLOCK_COLOR_DIFF_UPPER
+        && ((data[0] as i32) - (data[2] as i32)).abs() as u8 <= NO_BLOCK_COLOR_DIFF_UPPER
+    {
+        return false;
+    } else {
+        return true;
+    }
 
 }
 
@@ -101,7 +121,8 @@ fn imread(filename: &str) -> Mat {
 }
 
 fn imshow(name: &str, image: &Mat) {
-	highgui::named_window(name, WINDOW_AUTOSIZE);
+	// highgui::named_window(name, WINDOW_AUTOSIZE);
+    highgui::named_window(name, 0);
 	highgui::imshow(name, image);
 	highgui::wait_key(0);
     highgui::destroy_all_windows();
