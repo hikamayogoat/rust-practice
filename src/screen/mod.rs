@@ -45,11 +45,11 @@ pub fn screen_test() {
     for y in 0..FIELD_CELL_HEIGHT{
         for x in 0..FIELD_CELL_WIDTH{
             field[x as usize][y as usize] = check_block_exist(&cliped, x, y, &cell_size);
-            if field[x as usize][y as usize] {
-                print!("o");
-            } else {
-                print!(".");
-            }
+            // if field[x as usize][y as usize] {
+            //     print!("o");
+            // } else {
+            //     print!(".");
+            // }
         }
         println!("");
     }
@@ -63,12 +63,14 @@ fn check_block_exist(image: &Mat, x: i32, y: i32, cell_size: &(i32, i32)) -> boo
         image,
         Rect_{x: x * cell_size.0, y: y * cell_size.1, width: cell_size.0, height: cell_size.1}
     ).unwrap();
+
     let mut cell_f = Mat::default();
     cell_u.convert_to(&mut cell_f, CV_32F, 1.0, 0.0);
 
     let cell = cell_f.reshape(1,  cell_f.rows() * cell_f.cols()).unwrap();
     
     // kmeans クラスタリングで代表色を抜き出す
+    const CLUSTER_NUM: i32 = 3;
     let mut label = Mat::default();
     let mut center= Mat::default();
     let criteria = TermCriteria {
@@ -78,33 +80,55 @@ fn check_block_exist(image: &Mat, x: i32, y: i32, cell_size: &(i32, i32)) -> boo
     };
     kmeans(
         &cell,
-        1,
+        CLUSTER_NUM,
         &mut label, // 謎:no_array() にすると center が continuous ではなくなってしまう
         criteria,
         10,
         KMEANS_RANDOM_CENTERS,
         &mut center
     );
+
+    // 出現数のラベルを発見して代表色のインデックスを見つける
+    let mut label_u = Mat::default();
+    label.convert_to(&mut label_u, CV_8UC1, 1.0, 0.0);
+    let l = label_u.data_typed::<u8>().unwrap();
+    let mut label_count = [0i32; CLUSTER_NUM as usize];
+    for i in 0..l.len() {
+        let index = l[i];
+        label_count[index as usize] = label_count[index as usize] + 1;
+    }
+    let mut max_index = 0;
+    for i in 0..(label_count.len() - 1) {
+        if label_count[i] < label_count[i+1] {
+            max_index = i;
+        }
+    }
+
+    // 代表色のBGRを取得する
     let mut center_u = Mat::default();
     center.convert_to(&mut center_u, CV_8UC1, 1.0, 0.0);
-
     let data = center_u.data_typed::<u8>().unwrap();
 
-    if 
-        data[0] >= NO_BLOCK_COLOR_LOWER
-        && data[1] >= NO_BLOCK_COLOR_LOWER
-        && data[2] >= NO_BLOCK_COLOR_LOWER
-        && data[0] <= NO_BLOCK_COLOR_UPPER
-        && data[1] <= NO_BLOCK_COLOR_UPPER
-        && data[2] <= NO_BLOCK_COLOR_UPPER
-        && ((data[0] as i32) - (data[1] as i32)).abs() as u8 <= NO_BLOCK_COLOR_DIFF_UPPER
-        && ((data[1] as i32) - (data[2] as i32)).abs() as u8 <= NO_BLOCK_COLOR_DIFF_UPPER
-        && ((data[0] as i32) - (data[2] as i32)).abs() as u8 <= NO_BLOCK_COLOR_DIFF_UPPER
-    {
-        return false;
-    } else {
-        return true;
-    }
+    let offset = max_index * CLUSTER_NUM as usize;
+    let color = (data[offset+2], data[offset+1], data[offset]);
+    println!("{:?}", color);
+    imshow("cell", &cell_u);
+
+    // if 
+    //     data[0] >= NO_BLOCK_COLOR_LOWER
+    //     && data[1] >= NO_BLOCK_COLOR_LOWER
+    //     && data[2] >= NO_BLOCK_COLOR_LOWER
+    //     && data[0] <= NO_BLOCK_COLOR_UPPER
+    //     && data[1] <= NO_BLOCK_COLOR_UPPER
+    //     && data[2] <= NO_BLOCK_COLOR_UPPER
+    //     && std::cmp::max(data[0], std::cmp::max(data[1], data[2])) 
+    //     - std::cmp::min(data[0], std::cmp::min(data[1], data[2])) <= NO_BLOCK_COLOR_DIFF_UPPER
+    // {
+    //     return false;
+    // } else {
+    //     return true;
+    // }
+    return true
 
 }
 
