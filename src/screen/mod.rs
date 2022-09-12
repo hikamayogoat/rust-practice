@@ -2,134 +2,114 @@ use std::fs;
 
 use screenshots::{Screen};
 use opencv::{
-    highgui::{self, WindowFlags, WINDOW_AUTOSIZE, WINDOW_KEEPRATIO, WINDOW_FULLSCREEN},
+    highgui::{self},
+    imgproc::{cvt_color, COLOR_BGR2HSV},
     imgcodecs,
-    prelude::*, core::*,
+    prelude::*, core::*, 
 };
 
-const SS_FILENAME: &str = "target/screenshot.png";
+const ORIGINAL_FILENAME: &str = "tetris/original.jpg";
 const TET_FILENAME: &str = "tetris/sprint2.jpg";
 
 // TODO: あとでよしなにやるけど一旦定数で持つ
-const UPPER_LEFT: (i32, i32) = (615, 320);
-const UPPER_RIGHT: (i32, i32) = (1335, 320);
-const BOTTOM_LEFT: (i32, i32) = (615, 1760);
-const BOTTOM_RIGHT: (i32, i32) = (1335, 1760);
+const UPPER_LEFT: (usize, usize) = (615, 320);
+const UPPER_RIGHT: (usize, usize) = (1335, 320);
+const BOTTOM_LEFT: (usize, usize) = (615, 1760);
+const BOTTOM_RIGHT: (usize, usize) = (1335, 1760);
 
-const FIELD_CELL_WIDTH: i32 = 10;
-const FIELD_CELL_HEIGHT: i32 = 20;
+const FIELD_CELL_WIDTH: usize = 10;
+const FIELD_CELL_HEIGHT: usize = 20;
 
-const NO_BLOCK_COLOR_LOWER: u8 = 25;
-const NO_BLOCK_COLOR_UPPER: u8 = 65;
-const NO_BLOCK_COLOR_DIFF_UPPER: u8 = 40;
 
 pub fn screen_test() {
     // 盤面情報を保持する2次元配列
-    let mut field = [[false; FIELD_CELL_HEIGHT as usize]; FIELD_CELL_WIDTH as usize];
+    let mut field = [[false; FIELD_CELL_HEIGHT]; FIELD_CELL_WIDTH];
 
     // 画像読み込み
-    let image = imread(TET_FILENAME);
+    let original_image = imread(ORIGINAL_FILENAME);
+    let cliped_original = cut_field(&original_image);
 
-    // 盤面部分だけ切り取る
+    let image = imread(TET_FILENAME);
+    let cliped_image = cut_field(&image);
+
+    // 座標の区切りサイズを計算する
+    let width = UPPER_RIGHT.0 - UPPER_LEFT.0;
+    let height = BOTTOM_LEFT.1 - UPPER_LEFT.1;
+    let cell_size = ((width / FIELD_CELL_WIDTH), (height / FIELD_CELL_HEIGHT));
+
+    // 盤面を取得する
+    field = get_field_info(&cliped_original, &cliped_image, &cell_size);
+
+    for y in 0..FIELD_CELL_HEIGHT {
+        for x in 0..FIELD_CELL_WIDTH {
+            if field[x][y] {
+                print!("o");
+            } else {
+                print!(".");
+            }
+        }
+        println!("");
+    }
+}
+
+// 盤面部分だけ切り取る
+fn cut_field(image: &Mat) -> Mat {
     let width = UPPER_RIGHT.0 - UPPER_LEFT.0;
     let height = BOTTOM_LEFT.1 - UPPER_LEFT.1;
     let cliped = Mat::roi(
         &image,
-        Rect_ { x: (UPPER_LEFT.0), y: (UPPER_LEFT.1), width: (width), height: (height) }
+        Rect_ { x: (UPPER_LEFT.0) as i32, y: (UPPER_LEFT.1) as i32, width: (width) as i32, height: (height) as i32 }
     ).unwrap();
-
-    // 座標の区切りサイズを計算する
-    let cell_size = (width / FIELD_CELL_WIDTH, height / FIELD_CELL_HEIGHT);
-
-    // 1マスごとにブロックがあるかどうかを判定する
-    for y in 0..FIELD_CELL_HEIGHT{
-        for x in 0..FIELD_CELL_WIDTH{
-            field[x as usize][y as usize] = check_block_exist(&cliped, x, y, &cell_size);
-            // if field[x as usize][y as usize] {
-            //     print!("o");
-            // } else {
-            //     print!(".");
-            // }
-        }
-        println!("");
-    }
-
-    
+    return cliped;
 }
 
-fn check_block_exist(image: &Mat, x: i32, y: i32, cell_size: &(i32, i32)) -> bool {
-    // 1マスを切り出して kmeans に渡せる形にする
-    let cell_u = Mat::roi(
-        image,
-        Rect_{x: x * cell_size.0, y: y * cell_size.1, width: cell_size.0, height: cell_size.1}
-    ).unwrap();
+fn get_field_info(original: &Mat, image: &Mat, cell_size: &(usize, usize)) -> [[bool; FIELD_CELL_HEIGHT]; FIELD_CELL_WIDTH] {
+    let mut field = [[false; FIELD_CELL_HEIGHT]; FIELD_CELL_WIDTH];
 
-    let mut cell_f = Mat::default();
-    cell_u.convert_to(&mut cell_f, CV_32F, 1.0, 0.0);
+    // 背景差分を計算する
+    let mut diff_rgb = Mat::default();
+    absdiff(original, image, &mut diff_rgb);
 
-    let cell = cell_f.reshape(1,  cell_f.rows() * cell_f.cols()).unwrap();
-    
-    // kmeans クラスタリングで代表色を抜き出す
-    const CLUSTER_NUM: i32 = 3;
-    let mut label = Mat::default();
-    let mut center= Mat::default();
-    let criteria = TermCriteria {
-        typ: 100,
-        max_count: 30,
-        epsilon: 1.0
-    };
-    kmeans(
-        &cell,
-        CLUSTER_NUM,
-        &mut label, // 謎:no_array() にすると center が continuous ではなくなってしまう
-        criteria,
-        10,
-        KMEANS_RANDOM_CENTERS,
-        &mut center
-    );
+    // 差分をHSVに変換する
+    let mut diff_hsv = Mat::default();
+    cvt_color(&diff_rgb, &mut diff_hsv,COLOR_BGR2HSV, diff_rgb.channels());
 
-    // 出現数のラベルを発見して代表色のインデックスを見つける
-    let mut label_u = Mat::default();
-    label.convert_to(&mut label_u, CV_8UC1, 1.0, 0.0);
-    let l = label_u.data_typed::<u8>().unwrap();
-    let mut label_count = [0i32; CLUSTER_NUM as usize];
-    for i in 0..l.len() {
-        let index = l[i];
-        label_count[index as usize] = label_count[index as usize] + 1;
-    }
-    let mut max_index = 0;
-    for i in 0..(label_count.len() - 1) {
-        if label_count[i] < label_count[i+1] {
-            max_index = i;
+    // 各マスごとに明度でブロックの有無を判定する
+    for y in 0..FIELD_CELL_HEIGHT {
+        for x in 0..FIELD_CELL_WIDTH {
+
+            let cell_hsv = Mat::roi(
+                &diff_hsv,
+                Rect_ { x: (x * cell_size.0) as i32, y: (y * cell_size.1) as i32, width: (cell_size.0) as i32, height: (cell_size.1) as i32 }
+            ).unwrap();
+
+            // なんかこれをやるとデータが連続になって取れるようになるのでやる
+            let mut cell_c = Mat::default();
+            cell_hsv.convert_to(&mut cell_c, CV_8UC3, 1.0, 0.0);
+
+            let cell_data = cell_c.data_typed::<Vec3b>().unwrap();
+            let mean_hsv = mean_vec(cell_data);
+
+            field[x][y] = mean_hsv.2 >= 100;
         }
     }
+    return field;
 
-    // 代表色のBGRを取得する
-    let mut center_u = Mat::default();
-    center.convert_to(&mut center_u, CV_8UC1, 1.0, 0.0);
-    let data = center_u.data_typed::<u8>().unwrap();
+}
 
-    let offset = max_index * CLUSTER_NUM as usize;
-    let color = (data[offset+2], data[offset+1], data[offset]);
-    println!("{:?}", color);
-    imshow("cell", &cell_u);
-
-    // if 
-    //     data[0] >= NO_BLOCK_COLOR_LOWER
-    //     && data[1] >= NO_BLOCK_COLOR_LOWER
-    //     && data[2] >= NO_BLOCK_COLOR_LOWER
-    //     && data[0] <= NO_BLOCK_COLOR_UPPER
-    //     && data[1] <= NO_BLOCK_COLOR_UPPER
-    //     && data[2] <= NO_BLOCK_COLOR_UPPER
-    //     && std::cmp::max(data[0], std::cmp::max(data[1], data[2])) 
-    //     - std::cmp::min(data[0], std::cmp::min(data[1], data[2])) <= NO_BLOCK_COLOR_DIFF_UPPER
-    // {
-    //     return false;
-    // } else {
-    //     return true;
-    // }
-    return true
-
+fn mean_vec(vec: &[Vec3b]) -> (u8, u8, u8) {
+    let mut h: u32 = 0;
+    let mut s: u32 = 0;
+    let mut v: u32 = 0;
+    for elem in vec {
+        h = h + (elem[0] as u32);
+        s = s + (elem[1] as u32);
+        v = v + (elem[2] as u32);
+    }
+    h = h / (vec.len() as u32);
+    s = s / (vec.len() as u32);
+    v = v / (vec.len() as u32);
+    return (h as u8, s as u8, v as u8);
 }
 
 fn write_ss() {
@@ -137,7 +117,7 @@ fn write_ss() {
     let main_screen = screens.unwrap()[0];
     let capture = main_screen.capture().unwrap();
     let buffer = capture.buffer();
-    fs::write(SS_FILENAME, &buffer).unwrap();
+    // fs::write(SS_FILENAME, &buffer).unwrap();
 }
 
 fn imread(filename: &str) -> Mat {
