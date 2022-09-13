@@ -12,19 +12,28 @@ const ORIGINAL_FILENAME: &str = "tetris/original.jpg";
 const TET_FILENAME: &str = "tetris/sprint2.jpg";
 
 // TODO: あとでよしなにやるけど一旦定数で持つ
+// memo: 検出がきびしそうなら画面サイズからの比率で出してもいけるかも
 const UPPER_LEFT: (usize, usize) = (615, 320);
 const UPPER_RIGHT: (usize, usize) = (1335, 320);
 const BOTTOM_LEFT: (usize, usize) = (615, 1760);
 const BOTTOM_RIGHT: (usize, usize) = (1335, 1760);
 
-const FIELD_CELL_WIDTH: usize = 10;
-const FIELD_CELL_HEIGHT: usize = 20;
+// 整数型で演算するので割り切れるように気をつける
+const CELL_WIDTH: usize = 10;
+const CELL_HEIGHT: usize = 20;
 
+// ネクストの座標: x_lower, x_upper, y_lower, y_upper
+const NEXT_1: (usize, usize, usize, usize) = (1400, 1650, 350, 500);
+const NEXT_2: (usize, usize, usize, usize) = (1400, 1600, 570, 680);
+const NEXT_3: (usize, usize, usize, usize) = (1400, 1600, 770, 890);
+const NEXT_4: (usize, usize, usize, usize) = (1400, 1600, 960, 1070);
+const NEXT_5: (usize, usize, usize, usize) = (1400, 1600, 1170, 1280);
+
+enum Mino {
+    S, Z, L, J, I, O, T
+}
 
 pub fn screen_test() {
-    // 盤面情報を保持する2次元配列
-    let mut field = [[false; FIELD_CELL_HEIGHT]; FIELD_CELL_WIDTH];
-
     // 画像読み込み
     let original_image = imread(ORIGINAL_FILENAME);
     let cliped_original = cut_field(&original_image);
@@ -35,13 +44,14 @@ pub fn screen_test() {
     // 座標の区切りサイズを計算する
     let width = UPPER_RIGHT.0 - UPPER_LEFT.0;
     let height = BOTTOM_LEFT.1 - UPPER_LEFT.1;
-    let cell_size = ((width / FIELD_CELL_WIDTH), (height / FIELD_CELL_HEIGHT));
+    let cell_size = ((width / CELL_WIDTH), (height / CELL_HEIGHT));
 
     // 盤面を取得する
+    let mut field = [[false; CELL_HEIGHT]; CELL_WIDTH];
     field = get_field_info(&cliped_original, &cliped_image, &cell_size);
 
-    for y in 0..FIELD_CELL_HEIGHT {
-        for x in 0..FIELD_CELL_WIDTH {
+    for y in 0..CELL_HEIGHT {
+        for x in 0..CELL_WIDTH {
             if field[x][y] {
                 print!("o");
             } else {
@@ -50,6 +60,22 @@ pub fn screen_test() {
         }
         println!("");
     }
+
+    // ネクストを取得する
+    let nexts = get_nexts(&image);
+
+}
+
+// ネクストを取得する
+fn get_nexts(image: &Mat) -> [Mino; 5] {
+
+    return [Mino::T, Mino::T, Mino::T, Mino::T, Mino::T];
+}
+
+// ミノの色を判別する
+fn estimate_block(image: &Mat) -> Mino {
+
+    return Mino::T;
 }
 
 // 盤面部分だけ切り取る
@@ -63,8 +89,8 @@ fn cut_field(image: &Mat) -> Mat {
     return cliped;
 }
 
-fn get_field_info(original: &Mat, image: &Mat, cell_size: &(usize, usize)) -> [[bool; FIELD_CELL_HEIGHT]; FIELD_CELL_WIDTH] {
-    let mut field = [[false; FIELD_CELL_HEIGHT]; FIELD_CELL_WIDTH];
+fn get_field_info(original: &Mat, image: &Mat, cell_size: &(usize, usize)) -> [[bool; CELL_HEIGHT]; CELL_WIDTH] {
+    let mut field = [[false; CELL_HEIGHT]; CELL_WIDTH];
 
     // 背景差分を計算する
     let mut diff_rgb = Mat::default();
@@ -75,8 +101,8 @@ fn get_field_info(original: &Mat, image: &Mat, cell_size: &(usize, usize)) -> [[
     cvt_color(&diff_rgb, &mut diff_hsv,COLOR_BGR2HSV, diff_rgb.channels());
 
     // 各マスごとに明度でブロックの有無を判定する
-    for y in 0..FIELD_CELL_HEIGHT {
-        for x in 0..FIELD_CELL_WIDTH {
+    for y in 0..CELL_HEIGHT {
+        for x in 0..CELL_WIDTH {
 
             let cell_hsv = Mat::roi(
                 &diff_hsv,
