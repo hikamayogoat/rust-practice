@@ -29,6 +29,8 @@ const NEXT_3: (usize, usize, usize, usize) = (1400, 1600, 770, 890);
 const NEXT_4: (usize, usize, usize, usize) = (1400, 1600, 960, 1070);
 const NEXT_5: (usize, usize, usize, usize) = (1400, 1600, 1170, 1280);
 
+// ネクストミノのBGRレンジ
+
 enum Mino {
     S, Z, L, J, I, O, T
 }
@@ -50,16 +52,16 @@ pub fn screen_test() {
     let mut field = [[false; CELL_HEIGHT]; CELL_WIDTH];
     field = get_field_info(&cliped_original, &cliped_image, &cell_size);
 
-    for y in 0..CELL_HEIGHT {
-        for x in 0..CELL_WIDTH {
-            if field[x][y] {
-                print!("o");
-            } else {
-                print!(".");
-            }
-        }
-        println!("");
-    }
+    // for y in 0..CELL_HEIGHT {
+    //     for x in 0..CELL_WIDTH {
+    //         if field[x][y] {
+    //             print!("o");
+    //         } else {
+    //             print!(".");
+    //         }
+    //     }
+    //     println!("");
+    // }
 
     // ネクストを取得する
     let nexts = get_nexts(&image);
@@ -69,13 +71,76 @@ pub fn screen_test() {
 // ネクストを取得する
 fn get_nexts(image: &Mat) -> [Mino; 5] {
 
+    let next1 = cut_rect(image, NEXT_1);
+    let next2 = cut_rect(image, NEXT_2);
+    let next3 = cut_rect(image, NEXT_3);
+    let next4 = cut_rect(image, NEXT_4);
+    let next5 = cut_rect(image, NEXT_5);
+
+    estimate_block(&next1);
+    estimate_block(&next2);
+    estimate_block(&next3);
+    estimate_block(&next4);
+    estimate_block(&next5);
+
     return [Mino::T, Mino::T, Mino::T, Mino::T, Mino::T];
 }
 
 // ミノの色を判別する
 fn estimate_block(image: &Mat) -> Mino {
+    // 黒、ミノの色、灰色などその他微妙なものの3つになることを期待している
+    const CLUSTER_NUM: i32 = 3;
+
+    let mut label = Mat::default();
+    let mut center = Mat::default();
+
+    let criteria = TermCriteria {
+        typ: 10,
+        max_count: 30,
+        epsilon: 1.0
+    };
+
+    let mut image_f = Mat::default();
+    image.convert_to(&mut image_f, CV_32F, 1.0, 0.0);
+
+    let image_reshaped = image_f.reshape(1, image_f.rows() * image_f.cols()).unwrap();
+
+    kmeans(
+        &image_reshaped,
+        CLUSTER_NUM,
+        &mut label, 
+        criteria,
+        10,
+        KMEANS_RANDOM_CENTERS,
+        &mut center
+    );
+
+    let mut center_u = Mat::default();
+    center.convert_to(&mut center_u, CV_8UC3, 1.0, 0.0);
+
+    let cands = center_u.data_typed::<u8>().unwrap();
+    for i in 0..CLUSTER_NUM {
+        let first: usize = (i * CLUSTER_NUM) as usize;
+        println!("{}({}, {}, {})", i+1, cands[first], cands[first+1], cands[first+2]);
+    }
+    imshow("test", image);
 
     return Mino::T;
+}
+
+// 指定された領域を切り出す
+fn cut_rect(image: &Mat, pos: (usize, usize, usize, usize)) -> Mat {
+    let x = pos.0 as i32;
+    let y = pos.2 as i32;
+    let width = pos.1 as i32 - pos.0 as i32;
+    let height = pos.3 as i32 - pos.2 as i32;
+    
+    let rect = Mat::roi(
+        image,
+        Rect_{x: x, y: y, width: width, height: height}
+    ).unwrap();
+
+    return rect;
 }
 
 // 盤面部分だけ切り取る
