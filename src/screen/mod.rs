@@ -29,10 +29,18 @@ const NEXT_3: (usize, usize, usize, usize) = (1400, 1600, 770, 890);
 const NEXT_4: (usize, usize, usize, usize) = (1400, 1600, 960, 1070);
 const NEXT_5: (usize, usize, usize, usize) = (1400, 1600, 1170, 1280);
 
-// ネクストミノのBGRレンジ
+// ミノの基準 HS
+const S_MINO_HSV: (u16, u16, u16) =  (100, 190, 180);
+const Z_MINO_HSV: (u16, u16, u16) = (0, 220, 130);
+const L_MINO_HSV: (u16, u16, u16) = (35, 0, 0);
+const J_MINO_HSV: (u16, u16, u16) = (210, 250, 170);
+const I_MINO_HSV: (u16, u16, u16) = (180, 0, 0);
+const T_MINO_HSV: (u16, u16, u16) = (290, 100, 200);
+const O_MINO_HSV: (u16, u16, u16) = (45, 105, 200);
+const HSV_GAP: u16 = 30;
 
 enum Mino {
-    S, Z, L, J, I, O, T
+    S, Z, L, J, I, O, T, NULL
 }
 
 pub fn screen_test() {
@@ -89,19 +97,23 @@ fn get_nexts(image: &Mat) -> [Mino; 5] {
 // ミノの色を判別する
 fn estimate_block(image: &Mat) -> Mino {
     // 黒、ミノの色、灰色などその他微妙なものの3つになることを期待している
-    const CLUSTER_NUM: i32 = 3;
+    const CLUSTER_NUM: i32 = 5;
+
+    // HSVに変換する
+    let mut image_hsv = Mat::default();
+    cvt_color(image, &mut image_hsv, COLOR_BGR2HSV, image.channels());
 
     let mut label = Mat::default();
     let mut center = Mat::default();
 
     let criteria = TermCriteria {
         typ: 10,
-        max_count: 30,
+        max_count: 50,
         epsilon: 1.0
     };
 
     let mut image_f = Mat::default();
-    image.convert_to(&mut image_f, CV_32F, 1.0, 0.0);
+    image_hsv.convert_to(&mut image_f, CV_32F, 1.0, 0.0);
 
     let image_reshaped = image_f.reshape(1, image_f.rows() * image_f.cols()).unwrap();
 
@@ -110,20 +122,27 @@ fn estimate_block(image: &Mat) -> Mino {
         CLUSTER_NUM,
         &mut label, 
         criteria,
-        10,
+        50,
         KMEANS_RANDOM_CENTERS,
         &mut center
     );
 
+    // HSVだと8bitじゃ足りなそうという予想のもと,ここ以降16で扱ってみている
     let mut center_u = Mat::default();
-    center.convert_to(&mut center_u, CV_8UC3, 1.0, 0.0);
+    center.convert_to(&mut center_u, CV_16UC3, 1.0, 0.0);
 
-    let cands = center_u.data_typed::<u8>().unwrap();
+    let cands_serial = center_u.data_typed::<u16>().unwrap();
+
+    let mut hsv = [0u16; 3];
     for i in 0..CLUSTER_NUM {
-        let first: usize = (i * CLUSTER_NUM) as usize;
-        println!("{}({}, {}, {})", i+1, cands[first], cands[first+1], cands[first+2]);
+        let first = (i * 3) as usize;
+        let candidate: [u16; 3] = [cands_serial[first]*2, cands_serial[first+1], cands_serial[first+2]];
+
+        println!("{:?}", candidate);
+
     }
     imshow("test", image);
+
 
     return Mino::T;
 }
