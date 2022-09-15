@@ -2,7 +2,7 @@ use std::fs;
 
 use screenshots::{Screen};
 use opencv::{
-    highgui::{self},
+    highgui::{self, WINDOW_AUTOSIZE},
     imgproc::{cvt_color, COLOR_BGR2HSV},
     imgcodecs,
     prelude::*, core::*, 
@@ -29,15 +29,16 @@ const NEXT_3: (usize, usize, usize, usize) = (1400, 1600, 770, 890);
 const NEXT_4: (usize, usize, usize, usize) = (1400, 1600, 960, 1070);
 const NEXT_5: (usize, usize, usize, usize) = (1400, 1600, 1170, 1280);
 
-// ミノの基準 HS
-const S_MINO_HSV: (u16, u16, u16) =  (100, 190, 180);
-const Z_MINO_HSV: (u16, u16, u16) = (0, 220, 130);
-const L_MINO_HSV: (u16, u16, u16) = (35, 0, 0);
-const J_MINO_HSV: (u16, u16, u16) = (210, 250, 170);
-const I_MINO_HSV: (u16, u16, u16) = (180, 0, 0);
-const T_MINO_HSV: (u16, u16, u16) = (290, 100, 200);
-const O_MINO_HSV: (u16, u16, u16) = (45, 105, 200);
-const HSV_GAP: u16 = 30;
+// ミノの基準 HSV
+const S_MINO_HSV: (Mino, u16, u16, u16) =  (Mino::S, 100, 190, 180);
+const Z_MINO_HSV: (Mino, u16, u16, u16) = (Mino::Z, 0, 220, 130);
+const L_MINO_HSV: (Mino, u16, u16, u16) = (Mino::L, 25, 250, 240);
+const J_MINO_HSV: (Mino, u16, u16, u16) = (Mino::J, 210, 250, 170);
+const I_MINO_HSV: (Mino, u16, u16, u16) = (Mino::I, 200, 240, 200);
+const T_MINO_HSV: (Mino, u16, u16, u16) = (Mino::T, 290, 175, 150);
+const O_MINO_HSV: (Mino, u16, u16, u16) = (Mino::O, 45, 215, 200);
+const HS_GAP: u16 = 10;
+const V_GAP: u16 = 50;
 
 enum Mino {
     S, Z, L, J, I, O, T, NULL
@@ -60,16 +61,17 @@ pub fn screen_test() {
     let mut field = [[false; CELL_HEIGHT]; CELL_WIDTH];
     field = get_field_info(&cliped_original, &cliped_image, &cell_size);
 
-    // for y in 0..CELL_HEIGHT {
-    //     for x in 0..CELL_WIDTH {
-    //         if field[x][y] {
-    //             print!("o");
-    //         } else {
-    //             print!(".");
-    //         }
-    //     }
-    //     println!("");
-    // }
+    for y in 0..CELL_HEIGHT {
+        for x in 0..CELL_WIDTH {
+            if field[x][y] {
+                print!("o");
+            } else {
+                print!(".");
+            }
+        }
+        println!("");
+    }
+    imshow("field", &cliped_image);
 
     // ネクストを取得する
     let nexts = get_nexts(&image);
@@ -94,10 +96,11 @@ fn get_nexts(image: &Mat) -> [Mino; 5] {
     return [Mino::T, Mino::T, Mino::T, Mino::T, Mino::T];
 }
 
-// ミノの色を判別する
+// ミノ判別する
+// 正直 kmeans でわざわざやるほどでもない気はするが一旦このまま
 fn estimate_block(image: &Mat) -> Mino {
-    // 黒、ミノの色、灰色などその他微妙なものの3つになることを期待している
-    const CLUSTER_NUM: i32 = 5;
+    const CLUSTER_NUM: i32 = 3;
+    let mino_hsv_vec = vec![S_MINO_HSV, Z_MINO_HSV, L_MINO_HSV, J_MINO_HSV, I_MINO_HSV, T_MINO_HSV, O_MINO_HSV];
 
     // HSVに変換する
     let mut image_hsv = Mat::default();
@@ -107,22 +110,22 @@ fn estimate_block(image: &Mat) -> Mino {
     let mut center = Mat::default();
 
     let criteria = TermCriteria {
-        typ: 10,
-        max_count: 50,
-        epsilon: 1.0
+        typ: 100,
+        max_count: 100,
+        epsilon: 0.5
     };
 
     let mut image_f = Mat::default();
     image_hsv.convert_to(&mut image_f, CV_32F, 1.0, 0.0);
 
-    let image_reshaped = image_f.reshape(1, image_f.rows() * image_f.cols()).unwrap();
+    let image_reshaped = image_f.reshape(3, image_f.rows() * image_f.cols()).unwrap();
 
     kmeans(
         &image_reshaped,
         CLUSTER_NUM,
         &mut label, 
         criteria,
-        50,
+        10,
         KMEANS_RANDOM_CENTERS,
         &mut center
     );
@@ -133,16 +136,39 @@ fn estimate_block(image: &Mat) -> Mino {
 
     let cands_serial = center_u.data_typed::<u16>().unwrap();
 
-    let mut hsv = [0u16; 3];
     for i in 0..CLUSTER_NUM {
         let first = (i * 3) as usize;
         let candidate: [u16; 3] = [cands_serial[first]*2, cands_serial[first+1], cands_serial[first+2]];
 
-        println!("{:?}", candidate);
+        // 黒は切り捨てておく
+        if candidate[2] <= 100 {
+            continue;
+        }
 
+        for mino in &mino_hsv_vec {
+            // u16だと負の値になるかもしれないので対策しておく
+            let h_range = (std::cmp::max(HS_GAP, mino.1) - HS_GAP, mino.1 + HS_GAP);
+            let s_range = (std::cmp::max(V_GAP, mino.2) - V_GAP, mino.2 + V_GAP);
+            let v_range = (std::cmp::max(V_GAP, mino.3) - V_GAP, mino.3 + V_GAP);
+            if candidate[0] >= h_range.0 && candidate[0] <= h_range.1 {
+                if candidate[1] >= s_range.0 && candidate[1] <= s_range.1 {
+                    if candidate[2] >= v_range.0 && candidate[2] <= v_range.1 {
+                        match mino.0 {
+                            Mino::S => println!("S"),
+                            Mino::Z => println!("Z"),
+                            Mino::L => println!("L"),
+                            Mino::J => println!("J"),
+                            Mino::I => println!("I"),
+                            Mino::T => println!("T"),
+                            Mino::O => println!("O"),
+                            _ => println!("null")
+                        }
+                    }
+                }
+            }
+        }
     }
     imshow("test", image);
-
 
     return Mino::T;
 }
@@ -235,8 +261,8 @@ fn imread(filename: &str) -> Mat {
 }
 
 fn imshow(name: &str, image: &Mat) {
-	// highgui::named_window(name, WINDOW_AUTOSIZE);
-    highgui::named_window(name, 0);
+	highgui::named_window(name, WINDOW_AUTOSIZE);
+    // highgui::named_window(name, 0);
 	highgui::imshow(name, image);
 	highgui::wait_key(0);
     highgui::destroy_all_windows();
