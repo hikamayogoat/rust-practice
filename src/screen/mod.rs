@@ -7,16 +7,22 @@ use opencv::{
     prelude::*, core::*, sys::cv_imdecode_const__InputArrayR_int_MatX, types::VectorOfu8, 
 };
 
-const SS_FILENAME: &str = "ss.png";
 const ORIGINAL_FILENAME: &str = "tetris/original.jpg";
-const TET_FILENAME: &str = "tetris/sprint2.jpg";
+const TET_FILENAME: &str = "tetris/sprint.jpg";
 
 // TODO: あとでよしなにやるけど一旦定数で持つ
 // memo: 検出がきびしそうなら画面サイズからの比率で出してもいけるかも
+
 const UPPER_LEFT: (usize, usize) = (615, 320);
 const UPPER_RIGHT: (usize, usize) = (1335, 320);
 const BOTTOM_LEFT: (usize, usize) = (615, 1760);
 const BOTTOM_RIGHT: (usize, usize) = (1335, 1760);
+
+// 比率版
+// const X_LOWER_RATIO: f32 = 6.2;
+// const X_UPPER_RATIO: f32 = 2.85;
+// const Y_LOWER_RATIO: f32 = 6.75;
+// const Y_UPPER_RATIO: f32 = 1.23;
 
 // 整数型で演算するので割り切れるように気をつける
 const CELL_WIDTH: usize = 10;
@@ -40,8 +46,17 @@ const O_MINO_HSV: (Mino, u16, u16, u16) = (Mino::O, 45, 215, 200);
 const HS_GAP: u16 = 10;
 const V_GAP: u16 = 50;
 
+#[derive(Debug)]
 enum Mino {
-    S, Z, L, J, I, O, T, NULL
+    S, Z, L, J, I, O, T, UNKNOWN
+}
+
+#[derive(Debug)]
+#[derive(Clone)]
+#[derive(Copy)]
+#[derive(PartialEq)]
+enum Field {
+    EXIST, NONE, UNKNOWN
 }
 
 fn read_image_file(filename: &str) -> Mat {
@@ -62,23 +77,29 @@ pub fn screen_test() {
     let cell_size = ((width / CELL_WIDTH), (height / CELL_HEIGHT));
 
     // 盤面を取得する
-    let mut field = [[false; CELL_HEIGHT]; CELL_WIDTH];
+    let mut field = [[Field::UNKNOWN; CELL_HEIGHT]; CELL_WIDTH];
     field = get_field_info(&cliped_original, &cliped_image, &cell_size);
 
+    println!("Field-------");
     for y in 0..CELL_HEIGHT {
         for x in 0..CELL_WIDTH {
-            if field[x][y] {
+            if field[x][y] == Field::EXIST {
                 print!("o");
-            } else {
+            } else if field[x][y] == Field::NONE {
                 print!(".");
+            } else {
+                print!("?");
             }
         }
         println!("");
     }
-    imshow("field", &cliped_image);
 
     // ネクストを取得する
     let nexts = get_nexts(&image);
+
+    println!("Nexts-------");
+    println!("{:?}", nexts);
+    imshow("test", &image);
 
 }
 
@@ -91,13 +112,13 @@ fn get_nexts(image: &Mat) -> [Mino; 5] {
     let next4 = cut_rect(image, NEXT_4);
     let next5 = cut_rect(image, NEXT_5);
 
-    estimate_block(&next1);
-    estimate_block(&next2);
-    estimate_block(&next3);
-    estimate_block(&next4);
-    estimate_block(&next5);
+    let n1 = estimate_block(&next1);
+    let n2 = estimate_block(&next2);
+    let n3 = estimate_block(&next3);
+    let n4 = estimate_block(&next4);
+    let n5 = estimate_block(&next5);
 
-    return [Mino::T, Mino::T, Mino::T, Mino::T, Mino::T];
+    return [n1, n2, n3, n4, n5];
 }
 
 // ミノ判別する
@@ -158,23 +179,21 @@ fn estimate_block(image: &Mat) -> Mino {
                 if candidate[1] >= s_range.0 && candidate[1] <= s_range.1 {
                     if candidate[2] >= v_range.0 && candidate[2] <= v_range.1 {
                         match mino.0 {
-                            Mino::S => println!("S"),
-                            Mino::Z => println!("Z"),
-                            Mino::L => println!("L"),
-                            Mino::J => println!("J"),
-                            Mino::I => println!("I"),
-                            Mino::T => println!("T"),
-                            Mino::O => println!("O"),
-                            _ => println!("null")
+                            Mino::S => return Mino::S,
+                            Mino::Z => return Mino::Z,
+                            Mino::L => return Mino::L,
+                            Mino::J => return Mino::J,
+                            Mino::I => return Mino::I,
+                            Mino::T => return Mino::T,
+                            Mino::O => return Mino::O,
+                            _ => {}
                         }
                     }
                 }
             }
         }
     }
-    imshow("test", image);
-
-    return Mino::T;
+    return Mino::UNKNOWN;
 }
 
 // 指定された領域を切り出す
@@ -203,8 +222,8 @@ fn cut_field(image: &Mat) -> Mat {
     return cliped;
 }
 
-fn get_field_info(original: &Mat, image: &Mat, cell_size: &(usize, usize)) -> [[bool; CELL_HEIGHT]; CELL_WIDTH] {
-    let mut field = [[false; CELL_HEIGHT]; CELL_WIDTH];
+fn get_field_info(original: &Mat, image: &Mat, cell_size: &(usize, usize)) -> [[Field; CELL_HEIGHT]; CELL_WIDTH] {
+    let mut field = [[Field::UNKNOWN; CELL_HEIGHT]; CELL_WIDTH];
 
     // 背景差分を計算する
     let mut diff_rgb = Mat::default();
@@ -230,7 +249,13 @@ fn get_field_info(original: &Mat, image: &Mat, cell_size: &(usize, usize)) -> [[
             let cell_data = cell_c.data_typed::<Vec3b>().unwrap();
             let mean_hsv = mean_vec(cell_data);
 
-            field[x][y] = mean_hsv.2 >= 100;
+            println!("{:?}", mean_hsv);
+
+            if mean_hsv.2 >= 100 {
+                field[x][y] = Field::EXIST;
+            } else {
+                field[x][y] = Field::NONE;
+            };
         }
     }
     return field;
@@ -252,7 +277,7 @@ fn mean_vec(vec: &[Vec3b]) -> (u8, u8, u8) {
     return (h as u8, s as u8, v as u8);
 }
 
-pub fn write_ss() {
+fn get_ss() -> Mat {
 
     let screens = Screen::all();
     let main_screen = screens.unwrap()[1];
@@ -261,7 +286,7 @@ pub fn write_ss() {
 
     let mat = imdecode(&VectorOfu8::from_iter(buffer.clone()), 1).unwrap();
 
-    imshow("a", &mat);
+    return mat;
 }
 
 fn imshow(name: &str, image: &Mat) {
