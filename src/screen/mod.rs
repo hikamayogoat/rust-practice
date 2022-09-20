@@ -1,13 +1,13 @@
-use std::fs;
 
 use screenshots::{Screen};
 use opencv::{
     highgui::{self, WINDOW_AUTOSIZE},
     imgproc::{cvt_color, COLOR_BGR2HSV},
-    imgcodecs,
-    prelude::*, core::*, 
+    imgcodecs::{self, imread, imdecode, imdecode_to},
+    prelude::*, core::*, sys::cv_imdecode_const__InputArrayR_int_MatX, types::VectorOfu8, 
 };
 
+const SS_FILENAME: &str = "ss.png";
 const ORIGINAL_FILENAME: &str = "tetris/original.jpg";
 const TET_FILENAME: &str = "tetris/sprint2.jpg";
 
@@ -44,12 +44,16 @@ enum Mino {
     S, Z, L, J, I, O, T, NULL
 }
 
+fn read_image_file(filename: &str) -> Mat {
+    return imgcodecs::imread(filename, 1).unwrap();
+}
+
 pub fn screen_test() {
     // 画像読み込み
-    let original_image = imread(ORIGINAL_FILENAME);
+    let original_image = read_image_file(ORIGINAL_FILENAME);
     let cliped_original = cut_field(&original_image);
 
-    let image = imread(TET_FILENAME);
+    let image = read_image_file(TET_FILENAME);
     let cliped_image = cut_field(&image);
 
     // 座標の区切りサイズを計算する
@@ -248,21 +252,21 @@ fn mean_vec(vec: &[Vec3b]) -> (u8, u8, u8) {
     return (h as u8, s as u8, v as u8);
 }
 
-fn write_ss() {
+pub fn write_ss() {
+
     let screens = Screen::all();
-    let main_screen = screens.unwrap()[0];
+    let main_screen = screens.unwrap()[1];
     let capture = main_screen.capture().unwrap();
     let buffer = capture.buffer();
-    // fs::write(SS_FILENAME, &buffer).unwrap();
-}
 
-fn imread(filename: &str) -> Mat {
-    return imgcodecs::imread(filename, 1).unwrap();
+    let mat = imdecode(&VectorOfu8::from_iter(buffer.clone()), 1).unwrap();
+
+    imshow("a", &mat);
 }
 
 fn imshow(name: &str, image: &Mat) {
-	highgui::named_window(name, WINDOW_AUTOSIZE);
-    // highgui::named_window(name, 0);
+	// highgui::named_window(name, WINDOW_AUTOSIZE);
+    highgui::named_window(name, 0);
 	highgui::imshow(name, image);
 	highgui::wait_key(0);
     highgui::destroy_all_windows();
