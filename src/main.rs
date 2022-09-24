@@ -3,5 +3,5 @@ mod screen;
 
 fn main() {
     // key::key_test()
-    _ = screen::screen_test();
+   screen::screen_test();
 }
