@@ -15,9 +15,10 @@ const CELL_WIDTH: usize = 10;
 const CELL_HEIGHT: usize = 20;
 
 // 画面サイズをこの数値で割ると盤面の端の座標になる値。 (x_low, x_high, y_low, y_high)
-const FIELD_RATIO: (f32, f32, f32, f32) = (6.2, 2.87, 6.75, 1.22);
+const FIELD_RATIO: (f32, f32, f32, f32) = (6.2, 2.87, 6.75, 1.22); // ぷよテト1 Sprint
 
 // 画面サイズをこの数値で割るとネクストの領域の端の座標になる値。 (x_low, x_high, y_low, y_high)
+// ぷよテト1
 const NEXT1_POS_RASIO: (f32, f32, f32, f32) = (2.75, 2.34, 6.35, 4.4);
 const NEXT2_POS_RASIO: (f32, f32, f32, f32) = (2.75, 2.4, 3.85, 3.13);
 const NEXT3_POS_RASIO: (f32, f32, f32, f32) = (2.75, 2.4, 2.8, 2.45);
@@ -64,52 +65,57 @@ fn read_image_file(filename: &str) -> Mat {
 }
 
 pub fn screen_test() {
-    let tmp_width = 1920u32;
-    let tmp_height = 1080u32;
-    let field_pos = ratio_to_position(tmp_width, tmp_height, FIELD_RATIO);
 
-    // 画像読み込み
-    let original_image = read_image_file(ORIGINAL_FILENAME);
-    let cliped_original = cut_rect(&original_image, field_pos);
+    while true {
+        // 画面取得
+        let ss = get_ss(1);
+        let image = ss.0;
+        let display_width = ss.1;
+        let display_height = ss.2;
+        let field_pos = ratio_to_position(display_width, display_height, FIELD_RATIO);
+        let cliped_image = cut_rect(&image, field_pos);
 
-    let image = read_image_file(TET_FILENAME);
-    let cliped_image = cut_rect(&image, field_pos);
+        // 画像読み込み
+        let original_image = read_image_file(ORIGINAL_FILENAME);
+        let cliped_original = cut_rect(&original_image, field_pos);
 
-    // 座標の区切りサイズを計算する
-    let width = field_pos.1 - field_pos.0;
-    let height = field_pos.3 - field_pos.2;
-    let cell_size = ((width / CELL_WIDTH), (height / CELL_HEIGHT));
 
-    // 盤面を取得する
-    let mut field = [[Field::UNKNOWN; CELL_HEIGHT]; CELL_WIDTH];
-    field = get_field_info(&cliped_original, &cliped_image, &cell_size);
+        // 座標の区切りサイズを計算する
+        let width = field_pos.1 - field_pos.0;
+        let height = field_pos.3 - field_pos.2;
+        let cell_size = ((width / CELL_WIDTH), (height / CELL_HEIGHT));
 
-    println!("Field-------");
-    for y in 0..CELL_HEIGHT {
-        for x in 0..CELL_WIDTH {
-            if field[x][y] == Field::EXIST {
-                print!("o");
-            } else if field[x][y] == Field::NONE {
-                print!(".");
-            } else {
-                print!("?");
+        // 盤面を取得する
+        let mut field = [[Field::UNKNOWN; CELL_HEIGHT]; CELL_WIDTH];
+        field = get_field_info(&cliped_original, &cliped_image, &cell_size);
+
+        println!("Field-------");
+        for y in 0..CELL_HEIGHT {
+            for x in 0..CELL_WIDTH {
+                if field[x][y] == Field::EXIST {
+                    print!("o");
+                } else if field[x][y] == Field::NONE {
+                    print!(".");
+                } else {
+                    print!("?");
+                }
             }
+            println!("");
         }
-        println!("");
-    }
 
-    // ネクストを取得する
-    let next_ratios = [NEXT1_POS_RASIO, NEXT2_POS_RASIO, NEXT3_POS_RASIO, NEXT4_POS_RASIO, NEXT5_POS_RASIO];
-    let mut nexts = [Mino::UNKNOWN; 5];
-    for i in 0..next_ratios.len() {
-        let next_pos = ratio_to_position(tmp_width, tmp_height, next_ratios[i]);
-        let img = cut_rect(&image, next_pos);
-        nexts[i] = estimate_block(&img);
-    }
+        // ネクストを取得する
+        let next_ratios = [NEXT1_POS_RASIO, NEXT2_POS_RASIO, NEXT3_POS_RASIO, NEXT4_POS_RASIO, NEXT5_POS_RASIO];
+        let mut nexts = [Mino::UNKNOWN; 5];
+        for i in 0..next_ratios.len() {
+            let next_pos = ratio_to_position(display_width, display_height, next_ratios[i]);
+            let img = cut_rect(&image, next_pos);
+            nexts[i] = estimate_block(&img);
+        }
 
-    println!("Nexts-------");
-    println!("{:?}", nexts);
-    imshow("test", &image);
+        println!("Nexts-------");
+        println!("{:?}", nexts);
+        // imshow("test", &image);
+    }
 
 }
 
