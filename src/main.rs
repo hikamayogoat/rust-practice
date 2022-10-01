@@ -1,7 +1,8 @@
 mod key;
 mod screen;
 
+use screen::screen::get_current_field;
+
 fn main() {
-    // key::key_test()
-   screen::screen_test();
+   let (field, nexts) = get_current_field(1);
 }
