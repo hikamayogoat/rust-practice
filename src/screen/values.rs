@@ -38,7 +38,7 @@ pub enum Mino {
 #[derive(Clone)]
 #[derive(Copy)]
 #[derive(PartialEq)]
-pub enum Field {
+pub enum CellState {
     EXIST, NONE, UNKNOWN
 }
 
@@ -49,4 +49,9 @@ pub fn ratio_to_position(display_width: u32, display_height: u32, ratio: (f32, f
     let higher_y = display_height as f32 / ratio.3;
 
     return (lower_x as usize, higher_x as usize, lower_y as usize, higher_y as usize);
+}
+
+pub struct BoardState {
+    pub field: [[CellState; CELL_HEIGHT]; CELL_WIDTH],
+    pub nexts: [Mino; 5]
 }

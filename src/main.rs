@@ -1,8 +1,8 @@
 mod key;
 mod screen;
 
-use screen::screen::get_current_field;
+use screen::screen::get_board_state;
 
 fn main() {
-   let (field, nexts) = get_current_field(1);
+   let board_state = get_board_state(1);
 }

@@ -8,7 +8,7 @@ use opencv::{
 use crate::screen::experimental::*;
 use crate::screen::values::*;
 
-pub fn get_current_field(screen_number: usize) -> ([[Field; CELL_HEIGHT]; CELL_WIDTH], [Mino; 5]) {
+pub fn get_board_state(screen_number: usize) -> BoardState {
     // 画面取得
     let ss = get_ss(screen_number);
     let image = ss.0;
@@ -28,7 +28,7 @@ pub fn get_current_field(screen_number: usize) -> ([[Field; CELL_HEIGHT]; CELL_W
     let cell_size = ((width / CELL_WIDTH), (height / CELL_HEIGHT));
 
     // 盤面を取得する
-    let mut field = [[Field::UNKNOWN; CELL_HEIGHT]; CELL_WIDTH];
+    let mut field = [[CellState::UNKNOWN; CELL_HEIGHT]; CELL_WIDTH];
     field = get_field_info(&cliped_original, &cliped_image, &cell_size);
 
     // ネクストを取得する
@@ -40,7 +40,7 @@ pub fn get_current_field(screen_number: usize) -> ([[Field; CELL_HEIGHT]; CELL_W
         nexts[i] = estimate_block(&img);
     }
 
-    return (field, nexts);
+    return BoardState{ field: field, nexts: nexts };
 }
 
 
@@ -130,8 +130,8 @@ fn cut_rect(image: &Mat, pos: (usize, usize, usize, usize)) -> Mat {
     return cliped;
 }
 
-fn get_field_info(original: &Mat, image: &Mat, cell_size: &(usize, usize)) -> [[Field; CELL_HEIGHT]; CELL_WIDTH] {
-    let mut field = [[Field::UNKNOWN; CELL_HEIGHT]; CELL_WIDTH];
+fn get_field_info(original: &Mat, image: &Mat, cell_size: &(usize, usize)) -> [[CellState; CELL_HEIGHT]; CELL_WIDTH] {
+    let mut field = [[CellState::UNKNOWN; CELL_HEIGHT]; CELL_WIDTH];
 
     // 背景差分を計算する
     let mut diff_rgb = Mat::default();
@@ -158,9 +158,9 @@ fn get_field_info(original: &Mat, image: &Mat, cell_size: &(usize, usize)) -> [[
             let mean_hsv = mean_vec(cell_data);
 
             if mean_hsv.2 >= 100 {
-                field[x][y] = Field::EXIST;
+                field[x][y] = CellState::EXIST;
             } else {
-                field[x][y] = Field::NONE;
+                field[x][y] = CellState::NONE;
             };
         }
     }
