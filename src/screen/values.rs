@@ -38,7 +38,7 @@ pub enum Mino {
 #[derive(Clone)]
 #[derive(Copy)]
 #[derive(PartialEq)]
-pub enum Field {
+pub enum CellStatus {
     EXIST, NONE, UNKNOWN
 }
 
