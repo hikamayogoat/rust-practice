@@ -84,6 +84,7 @@ pub const ALLOW_V_GAP: u16 = 50;
 #[derive(Debug)]
 #[derive(Clone)]
 #[derive(Copy)]
+#[derive(PartialEq)]
 pub enum Mino {
     S, Z, L, J, I, O, T, UNKNOWN
 }
