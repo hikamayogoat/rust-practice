@@ -8,10 +8,10 @@ use opencv::{
 use crate::screen::experimental::*;
 use crate::screen::values::*;
 
-type FieldMatrix = [[CellState; CELL_HEIGHT]; CELL_WIDTH];
+pub type FieldMatrix = [[CellState; CELL_HEIGHT]; CELL_WIDTH];
 pub struct BoardState {
-    field: FieldMatrix,
-    nexts: [Mino; 5]
+    pub field: FieldMatrix,
+    pub nexts: [Mino; 5]
 }
 
 struct ScreenShot {
@@ -27,7 +27,20 @@ struct RectPosition {
     upper_y: usize
 }
 
-pub fn get_board_state(screen_number: usize) -> BoardState {
+// ゲーム中かどうかを判定する
+pub fn check_in_game(image: &Mat, original: &Mat) -> bool {
+    // 背景差分を計算する
+    let mut diff_rgb = Mat::default();
+    absdiff(original, image, &mut diff_rgb);
+
+    let count = mean(&diff_rgb, &no_array()).unwrap();
+    println!("{:?}", count);
+
+    return true;
+}
+
+// 盤面・ネクストを取得する
+pub fn get_board_state(screen_number: usize) -> Option<BoardState> {
     // 画面取得
     let ss = get_ss(screen_number);
     let field_pos = ratio_to_position(ss.width, ss.height, &FIELD_RATIO);
@@ -36,6 +49,11 @@ pub fn get_board_state(screen_number: usize) -> BoardState {
     // 画像読み込み
     let original_image = read_image_file(ORIGINAL_FILENAME);
     let cliped_original = cut_rect(&original_image, &field_pos);
+
+    // ゲーム中でなければこの後の処理はしない
+    if check_in_game(&cliped_image, &cliped_original) == false {
+        return None;
+    }
 
     // 座標の区切りサイズを計算する
     let width = field_pos.upper_x - field_pos.lower_x;
@@ -53,7 +71,7 @@ pub fn get_board_state(screen_number: usize) -> BoardState {
         nexts[i] = estimate_block(&img);
     }
 
-    return BoardState{ field: field, nexts: nexts };
+    return Some(BoardState{ field: field, nexts: nexts });
 }
 
 fn ratio_to_position(display_width: u32, display_height: u32, ratio: &PositionRatio) -> RectPosition {
