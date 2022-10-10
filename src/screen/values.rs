@@ -5,27 +5,81 @@ pub const TET_FILENAME: &str = "tetris/sprint.jpg";
 pub const CELL_WIDTH: usize = 10;
 pub const CELL_HEIGHT: usize = 20;
 
-// 画面サイズをこの数値で割ると盤面の端の座標になる値。 (x_low, x_high, y_low, y_high)
-pub const FIELD_RATIO: (f32, f32, f32, f32) = (6.2, 2.87, 6.75, 1.22); // ぷよテト1 Sprint
+pub struct PositionRatio {
+    pub lower_x_ratio: f32,
+    pub upper_x_ratio: f32,
+    pub lower_y_ratio: f32,
+    pub upper_y_ratio: f32
+}
 
-// 画面サイズをこの数値で割るとネクストの領域の端の座標になる値。 (x_low, x_high, y_low, y_high)
-// ぷよテト1
-pub const NEXT1_POS_RASIO: (f32, f32, f32, f32) = (2.75, 2.34, 6.35, 4.4);
-pub const NEXT2_POS_RASIO: (f32, f32, f32, f32) = (2.75, 2.4, 3.85, 3.13);
-pub const NEXT3_POS_RASIO: (f32, f32, f32, f32) = (2.75, 2.4, 2.8, 2.45);
-pub const NEXT4_POS_RASIO: (f32, f32, f32, f32) = (2.75, 2.4, 2.25, 2.0);
-pub const NEXT5_POS_RASIO: (f32, f32, f32, f32) = (2.75, 2.4, 1.86, 1.68);
+// 画面サイズをこの数値で割るとテトリス盤面の矩形の端を示す比率
+pub const FIELD_RATIO: PositionRatio = PositionRatio {
+    lower_x_ratio: 6.2, 
+    upper_x_ratio: 2.87, 
+    lower_y_ratio: 6.75, 
+    upper_y_ratio: 1.22
+}; 
+
+// 画面サイズをこの数値で割るとネクスト1〜5の領域の端を示す比率
+pub const NEXT1_POS_RATIO: PositionRatio = PositionRatio {
+    lower_x_ratio: 2.75, 
+    upper_x_ratio: 2.34, 
+    lower_y_ratio: 6.35, 
+    upper_y_ratio: 4.4
+};
+pub const NEXT2_POS_RATIO: PositionRatio = PositionRatio {
+    lower_x_ratio: 2.75, 
+    upper_x_ratio: 2.4, 
+    lower_y_ratio: 3.85, 
+    upper_y_ratio: 3.13
+};
+pub const NEXT3_POS_RATIO: PositionRatio = PositionRatio {
+    lower_x_ratio: 2.75, 
+    upper_x_ratio: 2.4, 
+    lower_y_ratio: 2.8, 
+    upper_y_ratio: 2.45
+};
+pub const NEXT4_POS_RATIO: PositionRatio = PositionRatio {
+    lower_x_ratio: 2.75, 
+    upper_x_ratio: 2.4, 
+    lower_y_ratio: 2.25, 
+    upper_y_ratio: 2.0
+};
+pub const NEXT5_POS_RATIO: PositionRatio = PositionRatio {
+    lower_x_ratio: 2.75, 
+    upper_x_ratio: 2.4, 
+    lower_y_ratio: 1.86, 
+    upper_y_ratio: 1.68
+};
+
+pub const NEXT_RATIOS: [PositionRatio; 5] = [
+    NEXT1_POS_RATIO, 
+    NEXT2_POS_RATIO, 
+    NEXT3_POS_RATIO, 
+    NEXT4_POS_RATIO, 
+    NEXT5_POS_RATIO
+];
 
 // ミノの基準 HSV
-pub const S_MINO_HSV: (Mino, u16, u16, u16) =  (Mino::S, 100, 190, 180);
-pub const Z_MINO_HSV: (Mino, u16, u16, u16) = (Mino::Z, 0, 220, 130);
-pub const L_MINO_HSV: (Mino, u16, u16, u16) = (Mino::L, 25, 250, 240);
-pub const J_MINO_HSV: (Mino, u16, u16, u16) = (Mino::J, 210, 250, 170);
-pub const I_MINO_HSV: (Mino, u16, u16, u16) = (Mino::I, 200, 240, 200);
-pub const T_MINO_HSV: (Mino, u16, u16, u16) = (Mino::T, 290, 175, 150);
-pub const O_MINO_HSV: (Mino, u16, u16, u16) = (Mino::O, 45, 215, 200);
-pub const HS_GAP: u16 = 10;
-pub const V_GAP: u16 = 50;
+pub struct MinoHSV {
+    pub kind: Mino,
+    pub h: u16,
+    pub s: u16,
+    pub v: u16
+}
+pub const MINO_HSV_LIST: [MinoHSV; 7] = [
+    MinoHSV { kind: Mino::S, h: 100, s: 190, v: 180 },
+    MinoHSV { kind: Mino::Z, h: 0, s: 220, v: 130 },
+    MinoHSV { kind: Mino::L, h: 25, s: 250, v: 240 },
+    MinoHSV { kind: Mino::J, h: 210, s: 250, v: 170 },
+    MinoHSV { kind: Mino::I, h: 200, s: 240, v: 200 },
+    MinoHSV { kind: Mino::T, h: 290, s: 175, v: 150 },
+    MinoHSV { kind: Mino::O, h: 45, s: 215, v: 200 },
+];
+// 許容する HSV の誤差範囲
+pub const ALLOW_H_GAP: u16 = 10;
+pub const ALLOW_S_GAP: u16 = 50;
+pub const ALLOW_V_GAP: u16 = 50;
 
 #[derive(Debug)]
 #[derive(Clone)]
@@ -38,15 +92,7 @@ pub enum Mino {
 #[derive(Clone)]
 #[derive(Copy)]
 #[derive(PartialEq)]
-pub enum Field {
+pub enum CellState {
     EXIST, NONE, UNKNOWN
 }
 
-pub fn ratio_to_position(display_width: u32, display_height: u32, ratio: (f32, f32, f32, f32)) -> (usize, usize, usize, usize) {
-    let lower_x = display_width as f32 / ratio.0;
-    let higher_x = display_width as f32 / ratio.1;
-    let lower_y = display_height as f32 / ratio.2;
-    let higher_y = display_height as f32 / ratio.3;
-
-    return (lower_x as usize, higher_x as usize, lower_y as usize, higher_y as usize);
-}
