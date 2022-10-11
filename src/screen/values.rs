@@ -5,11 +5,33 @@ pub const TET_FILENAME: &str = "tetris/sprint.jpg";
 pub const CELL_WIDTH: usize = 10;
 pub const CELL_HEIGHT: usize = 20;
 
+pub struct RectPosition {
+    pub lower_x: usize,
+    pub upper_x: usize,
+    pub lower_y: usize,
+    pub upper_y: usize
+}
 pub struct PositionRatio {
     pub lower_x_ratio: f32,
     pub upper_x_ratio: f32,
     pub lower_y_ratio: f32,
     pub upper_y_ratio: f32
+}
+
+impl PositionRatio {
+    pub fn ratio_to_position(&self, display_width: u32, display_height: u32) -> RectPosition {
+        let lower_x = display_width as f32 / self.lower_x_ratio;
+        let upper_x = display_width as f32 / self.upper_x_ratio;
+        let lower_y = display_height as f32 / self.lower_y_ratio;
+        let upper_y = display_height as f32 / self.upper_y_ratio;
+
+        RectPosition {
+            lower_x: lower_x as usize, 
+            upper_x: upper_x as usize, 
+            lower_y: lower_y as usize, 
+            upper_y: upper_y as usize
+        }
+    }
 }
 
 // 画面サイズをこの数値で割るとテトリス盤面の矩形の端を示す比率

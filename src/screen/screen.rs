@@ -20,18 +20,12 @@ struct ScreenShot {
     height: u32
 }
 
-struct RectPosition {
-    lower_x: usize,
-    upper_x: usize,
-    lower_y: usize,
-    upper_y: usize
-}
 
 // 盤面・ネクストを取得する
 pub fn get_board_state(screen_number: usize) -> BoardState {
     // 画面取得
     let ss = get_ss(screen_number);
-    let field_pos = ratio_to_position(ss.width, ss.height, &FIELD_RATIO);
+    let field_pos = FIELD_RATIO.ratio_to_position(ss.width, ss.height);
     let cliped_image = cut_rect(&ss.image, &field_pos);
 
     // 画像読み込み
@@ -49,7 +43,7 @@ pub fn get_board_state(screen_number: usize) -> BoardState {
     // ネクストを取得する
     let mut nexts = [Mino::UNKNOWN; 5];
     for i in 0..nexts.len() {
-        let next_pos = ratio_to_position(ss.width, ss.height, &NEXT_RATIOS[i]);
+        let next_pos = NEXT_RATIOS[i].ratio_to_position(ss.width, ss.height);
         let img = cut_rect(&ss.image, &next_pos);
         nexts[i] = estimate_block(&img);
     }
@@ -57,19 +51,6 @@ pub fn get_board_state(screen_number: usize) -> BoardState {
     return BoardState{ field: field, nexts: nexts };
 }
 
-fn ratio_to_position(display_width: u32, display_height: u32, ratio: &PositionRatio) -> RectPosition {
-    let lower_x = display_width as f32 / ratio.lower_x_ratio;
-    let upper_x = display_width as f32 / ratio.upper_x_ratio;
-    let lower_y = display_height as f32 / ratio.lower_y_ratio;
-    let upper_y = display_height as f32 / ratio.upper_y_ratio;
-
-    return RectPosition {
-        lower_x: lower_x as usize, 
-        upper_x: upper_x as usize, 
-        lower_y: lower_y as usize, 
-        upper_y: upper_y as usize
-    };
-}
 
 // ミノ判別する
 // 正直 kmeans でわざわざやるほどでもない気はするが一旦このまま
