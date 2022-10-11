@@ -8,10 +8,10 @@ use opencv::{
 use crate::screen::experimental::*;
 use crate::screen::values::*;
 
-type FieldMatrix = [[CellState; CELL_HEIGHT]; CELL_WIDTH];
+pub type FieldMatrix = [[CellState; CELL_HEIGHT]; CELL_WIDTH];
 pub struct BoardState {
-    field: FieldMatrix,
-    nexts: [Mino; 5]
+    pub field: FieldMatrix,
+    pub nexts: [Mino; 5]
 }
 
 struct ScreenShot {
@@ -27,6 +27,7 @@ struct RectPosition {
     upper_y: usize
 }
 
+// 盤面・ネクストを取得する
 pub fn get_board_state(screen_number: usize) -> BoardState {
     // 画面取得
     let ss = get_ss(screen_number);
